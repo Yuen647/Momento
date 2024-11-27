@@ -29,7 +29,7 @@ export function logout() {
 
 // 获取登录用户信息
 export function getUserInfo() {
-    return axios.post("/admin/user/info")
+    return axios.get("/user/user/current")
 }
 
 // 修改用户密码
