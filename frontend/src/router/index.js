@@ -12,9 +12,9 @@ import Admin from '@/layouts/admin/admin.vue'
 const routes = [
     {
         path: '/', // 路由地址，首页
-        component: Index, // 对应组件
+        component: Login, // 对应组件
         meta: { // meta 信息
-            title: 'Weblog 首页' // 页面标题
+            title: 'Weblog 登录页' // 页面标题
         }
     },
     {
@@ -33,35 +33,35 @@ const routes = [
                 path: "/admin/index",
                 component: AdminIndex,
                 meta: {
-                    title: '仪表盘'
+                    title: '首页'
                 }
             },
             {
                 path: "/admin/article/list",
                 component: AdminArticleList,
                 meta: {
-                    title: '文章管理'
+                    title: '我的笔记'
                 }
             },
             {
                 path: "/admin/category/list",
                 component: AdminCategoryList,
                 meta: {
-                    title: '分类管理'
+                    title: '关注列表'
                 }
             },
             {
                 path: "/admin/tag/list",
                 component: AdminTagList,
                 meta: {
-                    title: '标签管理'
+                    title: '我的收藏'
                 }
             },
             {
                 path: "/admin/blog/setting",
                 component: AdminBlogSetting,
                 meta: {
-                    title: '博客设置'
+                    title: '个人信息'
                 }
             },
         ]

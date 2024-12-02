@@ -2,7 +2,7 @@
   <div class="my-notes-container">
     <h1>我的笔记</h1>
     
-    <!-- 过滤选项 -->
+    <!-- 过滤选项
     <div class="filter-actions">
       <button 
         class="filter-btn" 
@@ -18,7 +18,7 @@
       >
         已删除笔记
       </button>
-    </div>
+    </div> -->
     
     <div v-if="loading" class="loading-spinner">
       <p>加载中...</p>
