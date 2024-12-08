@@ -3,6 +3,13 @@
     <h1 class="page-title">首页</h1>
     <div class="waterfall">
       <div class="note-card" v-for="note in notes" :key="note.id">
+        <!-- 显示笔记图片 -->
+        <img 
+          v-if="note.imgUris && note.imgUris.length > 0" 
+          :src="note.imgUris[0]" 
+          alt="笔记图片" 
+          class="note-image" 
+        />
         <h3 class="note-title">{{ note.title }}</h3>
         <p class="note-content">{{ note.content }}</p>
         <small class="note-date">{{ formatDate(note.updateTime) }}</small>
@@ -51,12 +58,40 @@ export default {
       return `${year}-${month}-${day} ${hours}:${minutes}`;
     };
 
+    // 获取笔记详情
+    const fetchNoteDetails = async (note, token) => {
+      try {
+        const response = await axios.post(
+          `/api/note/note/detail`,
+          { id: note.id },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.data.success) {
+          // 将imgUris添加到笔记对象中
+          note.imgUris = response.data.data.imgUris;
+          // 如果需要其他详细信息，也可以在这里添加
+        } else {
+          console.error(`获取笔记详情失败（ID: ${note.id}）:`, response.data.message);
+          note.imgUris = []; // 或者设置为默认图片
+        }
+      } catch (err) {
+        console.error(`获取笔记详情时出错（ID: ${note.id}）:`, err);
+        note.imgUris = []; // 或者设置为默认图片
+      }
+    };
+
     // 获取笔记
     const fetchNotes = async () => {
       try {
         const token = getToken();
         if (!token) {
-          console.error('Token not found!');
+          console.error('未找到Token！');
           alert('未找到认证信息，请重新登录。');
           return;
         }
@@ -77,13 +112,19 @@ export default {
           if (fetchedNotes.length < size.value) {
             noMoreNotes.value = true;
           }
+
+          // 并行获取所有笔记的详情
+          const detailPromises = fetchedNotes.map(note => fetchNoteDetails(note, token));
+          await Promise.all(detailPromises);
+
+          // 将带有详情的笔记添加到notes中
           notes.value = [...notes.value, ...fetchedNotes];
         } else {
           console.error("获取笔记失败:", response.data.message);
           error.value = "获取笔记失败: " + response.data.message;
         }
       } catch (err) {
-        console.error('Error fetching notes:', err);
+        console.error('获取笔记时出错:', err);
         error.value = "获取笔记时发生错误，请稍后重试。";
       } finally {
         loading.value = false;
@@ -152,6 +193,13 @@ export default {
 .note-card:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+.note-image {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 15px;
 }
 
 .note-title {

@@ -2,7 +2,8 @@
   <div class="my-notes-container">
     <h1>我的笔记</h1>
     
-    <!-- 过滤选项
+    <!-- 过滤选项（已注释，如果需要可取消注释） -->
+    <!--
     <div class="filter-actions">
       <button 
         class="filter-btn" 
@@ -18,7 +19,8 @@
       >
         已删除笔记
       </button>
-    </div> -->
+    </div>
+    -->
     
     <div v-if="loading" class="loading-spinner">
       <p>加载中...</p>
@@ -42,12 +44,19 @@
             v-for="note in sortedNotes" 
             :key="note.id"
           >
+            <!-- 显示笔记图片 -->
+            <div class="note-images" v-if="note.imgUris && note.imgUris.length">
+              <img 
+                v-for="(img, index) in note.imgUris" 
+                :key="index" 
+                :src="img" 
+                alt="笔记图片" 
+                class="note-image"
+              />
+            </div>
             <h3>{{ note.title }}</h3>
             <p>{{ note.content }}</p>
             <small>{{ formatDate(note.updateTime) }}</small>
-            <div class="note-images" v-if="note.imgUris && note.imgUris.length">
-              <img v-for="(img, index) in note.imgUris" :key="index" :src="img" alt="笔记图片" />
-            </div>
             <div class="note-actions">
               <button class="edit-btn" @click="editNote(note)" v-if="status === 1">编辑</button>
               <button class="top-btn" @click="toggleTop(note)" :class="{ active: note.isTop }">
@@ -163,10 +172,6 @@
   </div>
 </template>
 
-
-
-
-
 <script>
 import axios from 'axios';
 import { getToken } from '@/composables/cookie';
@@ -207,6 +212,34 @@ export default {
     const formatDate = (dateString) => {
       const date = new Date(dateString);
       return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    };
+
+    // 获取笔记详情
+    const fetchNoteDetails = async (note, token) => {
+      try {
+        const response = await axios.post(
+          '/api/note/note/detail',
+          { id: note.id },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.data.success) {
+          // 将imgUris添加到笔记对象中
+          note.imgUris = response.data.data.imgUris || [];
+          // 如果需要其他详细信息，也可以在这里添加
+        } else {
+          console.error(`获取笔记详情失败（ID: ${note.id}）:`, response.data.message);
+          note.imgUris = []; // 或者设置为默认图片
+        }
+      } catch (err) {
+        console.error(`获取笔记详情时出错（ID: ${note.id}）:`, err);
+        note.imgUris = []; // 或者设置为默认图片
+      }
     };
 
     // 获取当前用户信息
@@ -266,6 +299,12 @@ export default {
           if (fetchedNotes.length < size.value) {
             noMoreNotes.value = true;
           }
+
+          // 并行获取所有笔记的详情
+          const detailPromises = fetchedNotes.map(note => fetchNoteDetails(note, token));
+          await Promise.all(detailPromises);
+
+          // 将带有详情的笔记添加到myNotes中
           myNotes.value = [...myNotes.value, ...fetchedNotes];
         } else {
           throw new Error(response.data.message || '获取笔记列表失败。');
@@ -435,47 +474,88 @@ export default {
       }
     };
 
+    // // 处理图片上传（发布笔记）
+    // const handlePublishImageUpload = (event) => {
+    //   const files = event.target.files;
+    //   if (!files.length) return;
+
+    //   Array.from(files).forEach(file => {
+    //     const reader = new FileReader();
+    //     reader.onload = (e) => {
+    //       newNote.imgUris.push(e.target.result); // 添加 Base64 数据 URL
+    //     };
+    //     reader.onerror = (err) => {
+    //       console.error('图片读取出错:', err);
+    //       alert('图片读取出错。');
+    //     };
+    //     reader.readAsDataURL(file);
+    //   });
+
+    //   // 清空文件输入
+    //   event.target.value = '';
+    // };
+
+    // // 处理图片上传（编辑笔记）
+    // const handleEditImageUpload = (event) => {
+    //   const files = event.target.files;
+    //   if (!files.length) return;
+
+    //   Array.from(files).forEach(file => {
+    //     const reader = new FileReader();
+    //     reader.onload = (e) => {
+    //       currentNote.imgUris.push(e.target.result); // 添加 Base64 数据 URL
+    //     };
+    //     reader.onerror = (err) => {
+    //       console.error('图片读取出错:', err);
+    //       alert('图片读取出错。');
+    //     };
+    //     reader.readAsDataURL(file);
+    //   });
+
+    //   // 清空文件输入
+    //   event.target.value = '';
+    // };
+
     // 处理图片上传（发布笔记）
     const handlePublishImageUpload = (event) => {
-      const files = event.target.files;
-      if (!files.length) return;
-
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          newNote.imgUris.push(e.target.result); // 添加 Base64 数据 URL
-        };
-        reader.onerror = (err) => {
-          console.error('图片读取出错:', err);
-          alert('图片读取出错。');
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // 清空文件输入
-      event.target.value = '';
+        const files = event.target.files;
+        if (!files.length) return;
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const blob = new Blob([e.target.result], { type: file.type });
+                newNote.imgUris.push(URL.createObjectURL(blob)); // 使用Blob对象的URL
+            };
+            reader.onerror = (err) => {
+                console.error('图片读取出错:', err);
+                alert('图片读取出错。');
+            };
+            reader.readAsArrayBuffer(file); // 使用readAsArrayBuffer读取文件
+        });
+        // 清空文件输入
+        event.target.value = '';
     };
 
     // 处理图片上传（编辑笔记）
     const handleEditImageUpload = (event) => {
-      const files = event.target.files;
-      if (!files.length) return;
-
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          currentNote.imgUris.push(e.target.result); // 添加 Base64 数据 URL
-        };
-        reader.onerror = (err) => {
-          console.error('图片读取出错:', err);
-          alert('图片读取出错。');
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // 清空文件输入
-      event.target.value = '';
+        const files = event.target.files;
+        if (!files.length) return;
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const blob = new Blob([e.target.result], { type: file.type });
+                currentNote.imgUris.push(URL.createObjectURL(blob)); // 使用Blob对象的URL
+            };
+            reader.onerror = (err) => {
+                console.error('图片读取出错:', err);
+                alert('图片读取出错。');
+            };
+            reader.readAsArrayBuffer(file); // 使用readAsArrayBuffer读取文件
+        });
+        // 清空文件输入
+        event.target.value = '';
     };
+
 
     // 移除图片
     const removeImage = (imgUrisArray, index) => {
@@ -652,11 +732,6 @@ export default {
 };
 </script>
 
-
-
-
-
-
 <style scoped>
 .my-notes-container {
   padding: 20px;
@@ -733,6 +808,8 @@ h1 {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   position: relative;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .my-note-card:hover {
@@ -740,9 +817,13 @@ h1 {
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
+.my-note-card.is-top {
+  border-left: 5px solid #28a745;
+}
+
 .my-note-card h3 {
   font-size: 1.5em;
-  margin-bottom: 10px;
+  margin: 15px 0 10px 0;
   color: #007bff;
 }
 
@@ -750,9 +831,12 @@ h1 {
   font-size: 1em;
   color: #555;
   margin-bottom: 15px;
-  height: 80px;
+  flex-grow: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3; /* 显示三行 */
+  -webkit-box-orient: vertical;
 }
 
 .my-note-card small {
@@ -760,24 +844,37 @@ h1 {
   color: #999;
 }
 
+/* 调整图片显示区域 */
 .note-images {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 10px;
+  margin-bottom: 15px;
 }
 
-.note-images img {
+.note-image {
   width: 100%;
-  max-width: 100px;
   height: auto;
-  border-radius: 5px;
+  max-height: 200px;
   object-fit: cover;
+  border-radius: 5px;
+}
+
+/* 动态显示多张图片时的样式 */
+.note-images img {
+  width: calc(50% - 10px);
+}
+
+/* 根据需要调整 */
+.my-note-card.is-top .note-images img {
+  width: calc(50% - 10px);
 }
 
 .note-actions {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 15px;
 }
 
@@ -1030,6 +1127,7 @@ h1 {
   
   .my-note-card p {
     height: 60px;
+    -webkit-line-clamp: 2;
   }
 }
 
@@ -1040,6 +1138,7 @@ h1 {
   
   .my-note-card p {
     height: 80px;
+    -webkit-line-clamp: 3;
   }
   
   .modal {
@@ -1060,34 +1159,31 @@ h1 {
     width: 80px;
     height: 80px;
   }
+
+  .note-image {
+    max-height: 150px;
+  }
+
+  .note-images img {
+    width: 100%;
+  }
 }
 
- /* 新增样式：置顶标识
-.my-note-card::before {
-  content: '';
-  display: block;
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-bottom: 10px solid #ffc107;
+/* 新增样式：置顶标识 */
+/* .my-note-card::before {
+  content: '置顶';
   position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-} 
+  top: 10px;
+  left: 10px;
+  background-color: #28a745;
+  color: #fff;
+  padding: 2px 6px;
+  font-size: 0.8em;
+  border-radius: 3px;
+  display: none;
+}
 
 .my-note-card.is-top::before {
-  border-bottom-color: #28a745; 
+  display: block;
 } */
-
-/* 新增样式：恢复按钮 */
-.restore-btn {
-  background-color: #17a2b8;
-  color: #fff;
-}
-
-.restore-btn:hover {
-  background-color: #138496;
-}
 </style>
