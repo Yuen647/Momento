@@ -5,6 +5,9 @@ import AdminArticleList from '@/pages/admin/article-list.vue'
 import AdminCategoryList from '@/pages/admin/category-list.vue'
 import AdminTagList from '@/pages/admin/tag-list.vue'
 import AdminBlogSetting from '@/pages/admin/blog-setting.vue'
+import UserDetail from '@/pages/admin/user-detail.vue'
+import LikeTagList from '@/pages/admin/like-list.vue'
+import NoteDetail from '../pages/admin/noteDetail.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Admin from '@/layouts/admin/admin.vue'
 
@@ -64,8 +67,31 @@ const routes = [
                     title: '个人信息'
                 }
             },
+            {
+                path: "/admin/like/list",
+                component: LikeTagList,
+                meta: {
+                    title: '我的点赞'
+                }
+            },
+            {
+                path: "/admin/note/detail/:id/:userId",
+                component: NoteDetail,
+                name: "NoteDetail",
+                meta: {
+                    title: '笔记详情'
+                }
+            },
         ]
         
+    },
+    {
+        path: '/user/:userId',
+        name: 'UserDetail',
+        component: UserDetail,
+        meta: {
+            title: '用户详情'
+        }
     }
 ]
 

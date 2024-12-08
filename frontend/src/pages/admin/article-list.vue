@@ -43,6 +43,7 @@
             :class="{ 'is-top': note.isTop }" 
             v-for="note in sortedNotes" 
             :key="note.id"
+            @click="goToNoteDetail(note.id)"
           >
             <!-- 显示笔记图片 -->
             <div class="note-images" v-if="note.imgUris && note.imgUris.length">
@@ -176,9 +177,11 @@
 import axios from 'axios';
 import { getToken } from '@/composables/cookie';
 import { ref, reactive, computed } from 'vue';
+import { useRouter } from 'vue-router';
 
 export default {
   setup() {
+    const router = useRouter();
     const myNotes = ref([]);
     const userId = ref(null);
     const size = ref(10);
@@ -700,6 +703,17 @@ export default {
     // 组件挂载时获取用户信息和初始笔记
     fetchCurrentUser();
 
+    // 修改跳转函数
+    const goToNoteDetail = (id) => {
+      router.push({ 
+        name: 'NoteDetail', 
+        params: { 
+          id,
+          userId: userId.value // 使用已有的 userId
+        } 
+      });
+    };
+
     return {
       myNotes,
       sortedNotes, // 添加计算属性到返回对象
@@ -726,7 +740,8 @@ export default {
       toggleVisibility,
       handlePublishImageUpload,
       handleEditImageUpload,
-      removeImage
+      removeImage,
+      goToNoteDetail,
     };
   },
 };
@@ -810,6 +825,7 @@ h1 {
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
 }
 
 .my-note-card:hover {

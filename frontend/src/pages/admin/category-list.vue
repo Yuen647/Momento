@@ -13,7 +13,13 @@
             </template>
           </el-table-column>
   
-          <el-table-column label=" " width="200" prop="nickname"></el-table-column><!-- labei后写表单最上面的名字 -->、
+          <el-table-column label=" " width="200" prop="nickname">
+            <template #default="{ row }">
+              <div class="user-item" @click="goToUserDetail(row.userId)">
+                {{ row.nickname }}
+              </div>
+            </template>
+          </el-table-column>
   
           <el-table-column label=" " prop="avatar">
             <template #default="{ row }">
@@ -48,7 +54,13 @@
             </template>
           </el-table-column>
   
-          <el-table-column label=" " width="200" prop="nickname"></el-table-column><!-- labei后写表单最上面的名字 -->、
+          <el-table-column label=" " width="200" prop="nickname">
+            <template #default="{ row }">
+              <div class="user-item" @click="goToUserDetail(row.userId)">
+                {{ row.nickname }}
+              </div>
+            </template>
+          </el-table-column>
   
           <el-table-column label=" " prop="avatar">
             <template #default="{ row }">
@@ -70,6 +82,7 @@
   
   <script setup>
   import { ref, onMounted } from 'vue'
+  import { useRouter } from 'vue-router';
   //控制抽屉是否显示
   const visibleDrawer = ref(false)
   const visibleDrawerFans = ref(false)
@@ -116,47 +129,75 @@
     userId.value = result.data.id;
   }
   const followList = async () => {//获取关注列表相关
-    let params = {
-      userId: userId.value,
-      PageNo: PageNo.value
+    try {
+        let params = {
+            userId: userId.value,
+            PageNo: PageNo.value
+        }
+        let result = await followService(params);
+        if (result && result.success) {  // 添加检查
+            followCount.value = result.totalCount || 0;
+            follow.value = result.data || [];  // 如果 data 为 null，使用空数组
+            follow.value.forEach(item => {
+                item.isFollowed = true; // 新增是否被关注的属性
+                // 检查 avatar 是否为 null 或 undefined
+                if (item.avatar && item.avatar !== null && item.avatar !== undefined) {
+                    item.avatar = item.avatar
+                }
+                else {
+                    item.avatar = "https://img.quanxiaoha.com/quanxiaoha/f97361c0429d4bb1bc276ab835843065.jpg"; // 默认头像
+                }
+            });
+        } else {
+            follow.value = [];  // 如果请求失败，设置为空数组
+            followCount.value = 0;
+            console.error("获取关注列表失败:", result?.message);
+        }
+    } catch (error) {
+        follow.value = [];  // 发生错误时，设置为空数组
+        followCount.value = 0;
+        console.error("获取关注列表出错:", error);
     }
-    let result = await followService(params);
-    followCount.value = result.totalCount;
-    follow.value = result.data;
-    follow.value.forEach(item => {
-      item.isFollowed = true; // 新增是否被关注的属性
-      // 检查 avatar 是否为 null 或 undefined
-      if (item.avatar && item.avatar !== null && item.avatar !== undefined) {
-        item.avatar = item.avatar
-      }
-      else {
-        item.avatar = "https://img.quanxiaoha.com/quanxiaoha/f97361c0429d4bb1bc276ab835843065.jpg"; // 默认头像
-      }
-    });
-  }
+};
   const fansList = async () => {//获取粉丝列表相关
-    let params = {
-      userId: userId.value,
-      PageNo: PageNo.value
+    try {
+        let params = {
+            userId: userId.value,
+            PageNo: PageNo.value
+        }
+        let result = await fansService(params);
+        if (result && result.success) {  // 添加检查
+            fansCount.value = result.totalCount || 0;
+            fans.value = result.data || [];  // 如果 data 为 null，使用空数组
+            fans.value.forEach(item => {
+                item.isFollowed = true; // 新增是否被关注的属性
+                // 检查 avatar 是否为 null 或 undefined
+                if (item.avatar && item.avatar !== null && item.avatar !== undefined) {
+                    item.avatar = item.avatar
+                }
+                else {
+                    item.avatar = "https://img.quanxiaoha.com/quanxiaoha/f97361c0429d4bb1bc276ab835843065.jpg"; // 默认头像
+                }
+            });
+        } else {
+            fans.value = [];  // 如果请求失败，设置为空数组
+            fansCount.value = 0;
+            console.error("获取粉丝列表失败:", result?.message);
+        }
+    } catch (error) {
+        fans.value = [];  // 发生错误时，设置为空数组
+        fansCount.value = 0;
+        console.error("获取粉丝列表出错:", error);
     }
-    let result = await fansService(params);
-    fansCount.value = result.totalCount;
-    fans.value = result.data;
-    fans.value.forEach(item => {
-      item.isFollowed = true; // 新增是否被关注的属性
-      // 检查 avatar 是否为 null 或 undefined
-      if (item.avatar && item.avatar !== null && item.avatar !== undefined) {
-        item.avatar = item.avatar
-      }
-      else {
-        item.avatar = "https://img.quanxiaoha.com/quanxiaoha/f97361c0429d4bb1bc276ab835843065.jpg"; // 默认头像
-      }
-    });
-  }
+};
   const fetchAllData = async () => {
     await currentUser(); // 确保先获取用户ID
     await followList();  // 获取关注列表
     await fansList();    // 获取粉丝列表
+  };
+  const router = useRouter();
+  const goToUserDetail = (userId) => {
+    router.push(`/user/${userId}`);
   };
   onMounted(() => {
     fetchAllData(); // 组件加载时调用
@@ -200,6 +241,17 @@
   .scroll-content {
     max-height: 60vh;
     overflow-y: auto;
+  }
+  </style>
+  
+  <style scoped>
+  .user-item {
+    cursor: pointer;
+    color: #409EFF;
+  }
+  
+  .user-item:hover {
+    text-decoration: underline;
   }
   </style>
   

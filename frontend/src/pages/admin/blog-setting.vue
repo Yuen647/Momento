@@ -11,6 +11,11 @@
           <p><strong>生日:</strong> {{ formattedBirthday }}</p>
           <p><strong>性别:</strong> {{ gender }}</p>
           <p><strong>简介:</strong> {{ userInfo.introduction }}</p>
+          <p><strong>粉丝数:</strong> {{ userStats.fansTotal }}</p>
+          <p><strong>关注数:</strong> {{ userStats.followingTotal }}</p>
+          <p><strong>笔记总数:</strong> {{ userStats.noteTotal }}</p>
+          <p><strong>点赞总数:</strong> {{ userStats.likeTotal }}</p>
+          <p><strong>收藏总数:</strong> {{ userStats.collectTotal }}</p>
         </div>
       </div>
       <div class="user-info__actions">
@@ -104,7 +109,7 @@
 import axios from "axios";
 import { getToken } from "@/composables/cookie";
 import { sendVerificationCode, login } from '@/api/admin/user'; // 引入 login 方法
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 
 export default {
   setup() {
@@ -118,6 +123,14 @@ export default {
       sex: "", 
       backgrounding: "",
       introduction: ""
+    });
+
+    const userStats = reactive({
+        fansTotal: "0",
+        followingTotal: "0",
+        noteTotal: "0",
+        likeTotal: "0",
+        collectTotal: "0"
     });
 
     const passwordData = reactive({
@@ -173,7 +186,10 @@ export default {
         });
         if (response.data.success) {
           Object.assign(userInfo, response.data.data);
-          console.log(userInfo);
+          // 在成功获取用户信息后，立即获取用户统计信息
+          if (userInfo.id) {
+            await fetchUserStats(userInfo.id);
+          }
         } else {
           console.error("获取用户信息失败:", response.data.message);
           alert("获取用户信息失败: " + response.data.message);
@@ -182,6 +198,37 @@ export default {
         console.error("获取用户信息出错:", error);
         alert("获取用户信息出错，请稍后重试。");
       }
+    };
+
+    const fetchUserStats = async (id) => {
+        try {
+            const token = getToken();          
+            console.log("正在获取用户统计信息，用户ID:", id);
+            const response = await axios.post(`/api/count/count/user`, 
+            { userId: id }, 
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.data.success) {
+                Object.assign(userStats, response.data.data);
+                console.log("用户统计信息:", userStats);
+            } else {
+                console.error("获取用户统计信息失败:", response.data.message);
+            }
+        } catch (error) {
+            console.error("完整的错误对象:", error);
+            if (error.response) {
+                console.error("错误响应:", {
+                    status: error.response.status,
+                    data: error.response.data,
+                    headers: error.response.headers
+                });
+            }
+        }
     };
 
     // 发送验证码
@@ -322,6 +369,7 @@ export default {
           alert("用户信息已更新");
           closeEditModal();
           fetchUserInfo(); // 重新获取更新后的用户信息
+          fetchUserStats(userInfo.id); 
         } else {
           console.error("更新用户信息失败:", response.data.message);
           alert("更新用户信息失败: " + response.data.message);
@@ -351,6 +399,7 @@ export default {
     const closeEditModal = () => {
       isEditModalOpen.value = false;
       fetchUserInfo(); // 重新获取用户信息，重置表单
+      fetchUserStats(userInfo.id); 
     };
 
     // 打开修改密码模态窗口
@@ -365,7 +414,9 @@ export default {
     };
 
     // 组件挂载时获取用户信息
-    fetchUserInfo();
+    onMounted(() => {
+      fetchUserInfo();
+    });
 
     return {
       userInfo,
@@ -391,7 +442,9 @@ export default {
       gender,
       previewAvatar,
       previewBackground,
-      isFile
+      isFile,
+      userStats,
+      fetchUserStats
     };
   },
 };

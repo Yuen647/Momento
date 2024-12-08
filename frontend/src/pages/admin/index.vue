@@ -2,7 +2,7 @@
   <div class="home-container">
     <h1 class="page-title">首页</h1>
     <div class="waterfall">
-      <div class="note-card" v-for="note in notes" :key="note.id">
+      <div class="note-card" v-for="note in notes" :key="note.id" @click="goToNoteDetail(note.id)">
         <!-- 显示笔记图片 -->
         <img 
           v-if="note.imgUris && note.imgUris.length > 0" 
@@ -35,27 +35,31 @@
 <script>
 import axios from 'axios';
 import { getToken } from '@/composables/cookie';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
 export default {
   name: 'Home',
   setup() {
+    const router = useRouter();
     const loading = ref(false);
     const error = ref(null);
     const noMoreNotes = ref(false);
     const notes = ref([]);
     const page = ref(1);
     const size = ref(10);
+    const userId = ref(null);
 
     // 格式化日期
     const formatDate = (dateString) => {
-      const date = new Date(dateString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
+      if (!dateString) return ''; // 如果没有日期，返回空字符串
+      try {
+        // 直接截取前16位，即 "YYYY-MM-DD HH:mm"
+        return dateString.substring(0, 16);
+      } catch (error) {
+        console.error('日期格式化错误:', error, '日期字符串:', dateString);
+        return ''; // 如果发生错误，返回空字符串
+      }
     };
 
     // 获取笔记详情
@@ -142,6 +146,40 @@ export default {
     // 组件挂载时获取初始笔记
     fetchNotes();
 
+    // 修改跳转函数
+    const goToNoteDetail = (id) => {
+      router.push({ 
+        name: 'NoteDetail', 
+        params: { 
+          id,
+          userId: userId.value
+        } 
+      });
+    };
+
+    // 获取当前用户ID
+    const getCurrentUser = async () => {
+      try {
+        const token = getToken();
+        const response = await axios.get('/api/user/user/current', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (response.data.success) {
+          userId.value = response.data.data.id;
+        }
+      } catch (error) {
+        console.error('获取用户信息失败:', error);
+      }
+    };
+
+    // 在组件挂载时获取用户ID
+    onMounted(() => {
+      getCurrentUser();
+      fetchNotes();
+    });
+
     return {
       notes,
       loadMoreNotes,
@@ -149,6 +187,7 @@ export default {
       noMoreNotes,
       error,
       formatDate,
+      goToNoteDetail,
     };
   },
 };
@@ -188,6 +227,7 @@ export default {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  cursor: pointer;
 }
 
 .note-card:hover {
