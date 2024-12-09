@@ -1,6 +1,5 @@
 <template>
   <div class="home-container">
-    <h1 class="page-title">首页</h1>
     <div class="waterfall">
       <div class="note-card" v-for="note in notes" :key="note.id">
         <h3 class="note-title">{{ note.title }}</h3>
