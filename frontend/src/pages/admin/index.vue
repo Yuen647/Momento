@@ -1,233 +1,242 @@
 <template>
-  <div class="home-container">
-    <div class="waterfall">
-      <div class="note-card" v-for="note in notes" :key="note.id">
-        <h3 class="note-title">{{ note.title }}</h3>
-        <p class="note-content">{{ note.content }}</p>
-        <small class="note-date">{{ formatDate(note.updateTime) }}</small>
+  <div class="note-container">
+    <el-card class="note-display-area" shadow="hover">
+      <div class="note-cards">
+        <el-row :gutter="20" justify="center">
+          <el-col :span="8" v-for="note in notesWithPlaceholders" :key="note.id || note.placeholder">
+            <el-card class="note-card" shadow="hover" :class="{ 'placeholder-card': note.placeholder }"
+              @click="goToNoteDetail(note.id, note.creatorId)">
+
+              <div v-if="!note.placeholder">
+                <!-- 默认显示 developer.png，如果 note.imgUris 存在则覆盖 -->
+                <img :src="note.imgUris && note.imgUris[0] ? note.imgUris[0] : '/assets/developer.png'"
+                  @error="handleImageError" alt="Note Image" class="note-image" />
+                <h3>{{ note.title }}</h3>
+                <p>Updated: {{ note.updateTime }}</p>
+                <div class="creator-info">
+                  <img :src="note.avatar" alt="Creator Avatar" class="creator-avatar" />
+                  <span>{{ note.creatorName }}</span>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
       </div>
-    </div>
-    <div class="load-more-container">
-      <button 
-        class="load-more" 
-        @click="loadMoreNotes" 
-        :disabled="loading || noMoreNotes"
-      >
-        <span v-if="loading">加载中...</span>
-        <span v-else-if="noMoreNotes">没有更多内容了</span>
-        <span v-else>加载更多</span>
-      </button>
-    </div>
-    <div v-if="error" class="error-message">
-      {{ error }}
-    </div>
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalNotes"
+          :page-count="maxPage"
+          layout="prev, jumper, next"
+          @current-change="handlePageChange"
+          background
+        />
+      </div>
+    </el-card>
   </div>
 </template>
 
 <script>
-import axios from 'axios';
-import { getToken } from '@/composables/cookie';
-import { ref } from 'vue';
+import { getNoteListService, getNoteDetailService } from "@/api/note.js";
+import { ElMessage } from "element-plus";
 
 export default {
-  name: 'Home',
-  setup() {
-    const loading = ref(false);
-    const error = ref(null);
-    const noMoreNotes = ref(false);
-    const notes = ref([]);
-    const page = ref(1);
-    const size = ref(10);
-
-    // 格式化日期
-    const formatDate = (dateString) => {
-      const date = new Date(dateString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
-    };
-
-    // 获取笔记
-    const fetchNotes = async () => {
-      try {
-        const token = getToken();
-        if (!token) {
-          console.error('Token not found!');
-          alert('未找到认证信息，请重新登录。');
-          return;
-        }
-        loading.value = true;
-        const response = await axios.post(
-          `/api/note/note/list`,
-          { size: size.value, page: page.value },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (response.data.success) {
-          const fetchedNotes = response.data.data;
-          if (fetchedNotes.length < size.value) {
-            noMoreNotes.value = true;
-          }
-          notes.value = [...notes.value, ...fetchedNotes];
-        } else {
-          console.error("获取笔记失败:", response.data.message);
-          error.value = "获取笔记失败: " + response.data.message;
-        }
-      } catch (err) {
-        console.error('Error fetching notes:', err);
-        error.value = "获取笔记时发生错误，请稍后重试。";
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    // 加载更多笔记
-    const loadMoreNotes = () => {
-      if (!noMoreNotes.value && !loading.value) {
-        page.value++;
-        fetchNotes();
-      }
-    };
-
-    // 组件挂载时获取初始笔记
-    fetchNotes();
-
+  data() {
     return {
-      notes,
-      loadMoreNotes,
-      loading,
-      noMoreNotes,
-      error,
-      formatDate,
+      notes: [], // 当前页的笔记数据
+      currentPage: 1, // 当前页码
+      currentPageInput: 1, // 输入框中的页码
+      pageSize: 9, // 每页固定展示 9 条数据
+      totalNotes: 0, // 总笔记数，从后端获取
     };
+  },
+  computed: {
+    maxPage() {
+      return Math.max(1, Math.ceil(this.totalNotes / this.pageSize));
+    },
+    notesWithPlaceholders() {
+      const placeholders = Array.from({ length: this.pageSize - this.notes.length }, (_, index) => ({
+        placeholder: true,
+        id: `placeholder-${index}`,
+      }));
+      return [...this.notes, ...placeholders];
+    },
+  },
+  methods: {
+    fetchNotes() {
+      const params = {
+        page: this.currentPage,
+        size: this.pageSize,
+      };
+      getNoteListService(params)
+        .then(async (response) => {
+          if (response && response.length > 0) {
+            const detailedNotes = await Promise.all(
+              response.map(async (note) => {
+                const detailResponse = await getNoteDetailService({ id: note.id });
+                return {
+                  ...note,
+                  ...detailResponse.data,
+                };
+              })
+            );
+            this.notes = detailedNotes;
+            this.totalNotes = this.currentPage * this.pageSize + response.length;
+            this.currentPageInput = this.currentPage;
+          } else {
+            ElMessage.warning("没有更多笔记了~");
+            if (this.currentPage > 1) {
+              this.currentPage--;
+              this.currentPageInput = this.currentPage;
+            }
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching note list:", error);
+          ElMessage.error("Failed to fetch notes.");
+        });
+    },
+    handlePageChange(page) {
+      this.currentPage = page;
+      this.currentPageInput = page;
+      this.fetchNotes();
+    },
+    goToNoteDetail(noteId, userId) {
+      if (!noteId) return;
+      this.$router.push({ name: "NoteDetail", params: { id: noteId, userId } });
+    },
+    handleImageError(event) {
+      event.target.src = "/assets/developer.png";
+    },
+  },
+  mounted() {
+    this.fetchNotes();
   },
 };
 </script>
 
 <style scoped>
-.home-container {
-  padding: 40px 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  background-color: #f9fafb;
-  box-sizing: border-box;
+.note-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 73vh;
+  overflow: hidden;
 }
 
-.page-title {
-  font-size: 2.5em;
-  margin-bottom: 40px;
-  color: #333;
-  text-align: center;
+.note-display-area {
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 20px;
 }
 
-.waterfall {
+.note-cards {
   display: flex;
   flex-wrap: wrap;
-  gap: 30px;
   justify-content: center;
 }
 
 .note-card {
-  background: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 25px 20px;
-  border-radius: 12px;
-  width: calc(33.333% - 30px);
-  box-sizing: border-box;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  margin-bottom: 20px;
+  text-align: center;
+  height: 220px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .note-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+  transform: translateY(-5px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
-.note-title {
-  font-size: 1.75em;
-  margin-bottom: 15px;
-  color: #1a202c;
-  text-align: left;
+.note-card:not(.placeholder-card)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.03));
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-.note-content {
-  flex-grow: 1;
-  font-size: 1em;
-  color: #4a5568;
-  margin-bottom: 20px;
-  text-align: left;
-  line-height: 1.6;
+.note-card:not(.placeholder-card):hover::before {
+  opacity: 1;
 }
 
-.note-date {
-  font-size: 0.85em;
-  color: #a0aec0;
-  text-align: left;
+.note-image {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  transition: transform 0.3s ease;
 }
 
-.load-more-container {
-  margin-top: 40px;
+.note-card:hover .note-image {
+  transform: scale(1.05);
+}
+
+.creator-info {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 15px;
+  transition: background 0.3s ease;
+}
+
+.note-card:hover .creator-info {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.creator-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  margin-right: 10px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.placeholder-card {
+  background-color: #f9f9f9;
+  border: 1px dashed #e0e0e0;
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.placeholder-card:hover {
+  opacity: 0.8;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+  padding: 10px 0;
+}
+
+:deep(.el-pagination) {
+  --el-pagination-hover-color: #409eff;
+  --el-pagination-button-color: #606266;
+  --el-pagination-button-disabled-color: #c0c4cc;
+  --el-pagination-button-bg-color: #fff;
+  --el-pagination-hover-bg-color: #ecf5ff;
+}
+
+:deep(.el-pagination .el-input__inner) {
   text-align: center;
-}
-
-.load-more {
-  padding: 12px 30px;
-  font-size: 1.1em;
-  color: #ffffff;
-  background-color: #3182ce;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.load-more:disabled {
-  background-color: #a0aec0;
-  cursor: not-allowed;
-}
-
-.load-more:not(:disabled):hover {
-  background-color: #2b6cb0;
-  transform: translateY(-2px);
-}
-
-.error-message {
-  margin-top: 30px;
-  color: #e53e3e;
-  font-weight: bold;
-  text-align: center;
-  font-size: 1em;
-}
-
-/* 响应式设计 */
-@media (max-width: 992px) {
-  .note-card {
-    width: calc(50% - 30px);
-  }
-}
-
-@media (max-width: 600px) {
-  .note-card {
-    width: 100%;
-  }
-
-  .waterfall {
-    gap: 20px;
-  }
-
-  .load-more {
-    width: 100%;
-    padding: 12px 0;
-  }
 }
 </style>

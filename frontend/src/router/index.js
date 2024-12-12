@@ -1,10 +1,13 @@
 import Index from '@/pages/frontend/index.vue'
 import Login from '@/pages/admin/login.vue'
 import AdminIndex from '@/pages/admin/index.vue'
-import AdminArticleList from '@/pages/admin/article-list.vue'
+import AdminArticleList from '@/pages/admin/myArticle.vue'
 import AdminCategoryList from '@/pages/admin/category-list.vue'
 import AdminTagList from '@/pages/admin/tag-list.vue'
-import AdminBlogSetting from '@/pages/admin/blog-setting.vue'
+import AdminBlogSetting from '@/pages/admin/userProfile.vue'
+import UserDetail from '@/pages/admin/userView.vue'
+import LikeTagList from '@/pages/admin/like-list.vue'
+import NoteDetail from '../pages/admin/noteDetail.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Admin from '@/layouts/admin/admin.vue'
 
@@ -12,9 +15,9 @@ import Admin from '@/layouts/admin/admin.vue'
 const routes = [
     {
         path: '/', // 路由地址，首页
-        component: Index, // 对应组件
+        component: Login, // 对应组件
         meta: { // meta 信息
-            title: 'Weblog 首页' // 页面标题
+            title: 'Weblog 登录页' // 页面标题
         }
     },
     {
@@ -33,7 +36,7 @@ const routes = [
                 path: "/admin/index",
                 component: AdminIndex,
                 meta: {
-                    title: '仪表盘'
+                    title: '首页'
                 }
             },
             {
@@ -64,8 +67,31 @@ const routes = [
                     title: '个人信息'
                 }
             },
+            {
+                path: "/admin/like/list",
+                component: LikeTagList,
+                meta: {
+                    title: '我的点赞'
+                }
+            },
+            {
+                path: "/admin/note/detail/:id/:userId?",
+                component: NoteDetail,
+                name: "NoteDetail",
+                meta: {
+                    title: '笔记详情'
+                }
+            }
         ]
-        
+
+    },
+    {
+        path: '/user/:userId',
+        name: 'UserDetail',
+        component: UserDetail,
+        meta: {
+            title: '用户详情'
+        }
     }
 ]
 
@@ -74,7 +100,7 @@ const router = createRouter({
     // 指定路由的历史管理方式，hash 模式指的是 URL 的路径是通过 hash 符号（#）进行标识
     history: createWebHashHistory(),
     // routes: routes 的缩写
-    routes, 
+    routes,
 })
 
 // 暴露出去

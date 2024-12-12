@@ -14,7 +14,7 @@ export function useTabList() {
     // 导航栏 tab 数组
     const tabList = ref([
         {
-            title: '仪表盘',
+            title: '首页',
             path: "/admin/index"
         },
     ])

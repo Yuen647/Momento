@@ -1,179 +1,171 @@
 <template>
   <div class="my-notes-container">
-    <h1>我的笔记</h1>
-    
-    <!-- 过滤选项 -->
-    <div class="filter-actions">
-      <button 
-        class="filter-btn" 
-        :class="{ active: status === 1 }" 
-        @click="changeStatus(1)"
-      >
-        正常笔记
-      </button>
-      <button 
-        class="filter-btn" 
-        :class="{ active: status === 2 }" 
-        @click="changeStatus(2)"
-      >
-        已删除笔记
-      </button>
-    </div>
-    
-    <div v-if="loading" class="loading-spinner">
-      <p>加载中...</p>
-    </div>
-    
-    <div v-else>
-      <div v-if="error" class="error-message">
-        {{ error }}
+    <el-card class="note-detail-card" shadow="hover">
+      <div v-if="loading" class="loading-spinner">
+        <div class="spinner"></div>
       </div>
-      
+
       <div v-else>
-        <div class="actions" v-if="status === 1">
-          <button class="publish-btn" @click="openPublishModal">发布笔记</button>
+        <div v-if="error" class="error-message">
+          {{ error }}
         </div>
-        
-        <div class="notes-grid">
-          <!-- 使用 sortedNotes 进行渲染，并根据 isTop 添加类 -->
-          <div 
-            class="my-note-card" 
-            :class="{ 'is-top': note.isTop }" 
-            v-for="note in sortedNotes" 
-            :key="note.id"
-          >
-            <h3>{{ note.title }}</h3>
-            <p>{{ note.content }}</p>
-            <small>{{ formatDate(note.updateTime) }}</small>
-            <div class="note-images" v-if="note.imgUris && note.imgUris.length">
-              <img v-for="(img, index) in note.imgUris" :key="index" :src="img" alt="笔记图片" />
-            </div>
-            <div class="note-actions">
-              <button class="edit-btn" @click="editNote(note)" v-if="status === 1">编辑</button>
-              <button class="top-btn" @click="toggleTop(note)" :class="{ active: note.isTop }">
-                {{ note.isTop ? '取消置顶' : '置顶' }}
-              </button>
-              <button class="visibility-btn" @click="toggleVisibility(note)" :class="{ active: note.visible === 1 }">
-                {{ note.visible === 1 ? '公开' : '仅自己可见' }}
-              </button>
-              <button 
-                class="delete-btn" 
-                v-if="status === 1" 
-                @click="deleteNote(note)"
-              >
-                删除
-              </button>
-              <button 
-                class="restore-btn" 
-                v-else 
-                @click="restoreNote(note)"
-              >
-                恢复
-              </button>
+
+        <div v-else>
+          <div class="actions" v-if="status === 1">
+            <button class="publish-btn" @click="openPublishModal">发布笔记</button>
+          </div>
+
+          <div class="notes-grid">
+            <!-- 使用分页后的笔记数据 -->
+            <div class="my-note-card" :class="{ 'is-top': note.isTop }" v-for="note in paginatedNotes" :key="note.id"
+              @click="goToNoteDetail(note.id)">
+              <!-- 修改图片显示部分 -->
+              <div class="note-images">
+                <img src="/assets/developer.png" alt="默认图片" class="note-image" />
+                <img v-if="note.imgUris && note.imgUris.length > 0" 
+                     :src="note.imgUris[0]" 
+                     alt="" 
+                     class="note-image" 
+                     style="position: absolute; top: 0; left: 0;" />
+              </div>
+              <h3>{{ note.title }}</h3>
+              <small>{{ formatDate(note.updateTime) }}</small>
+              <div class="note-actions">
+                <button class="edit-btn" @click.stop="editNote(note)" v-if="status === 1">编辑</button>
+                <button class="top-btn" @click.stop="toggleTop(note)" :class="{ active: note.isTop }">
+                  {{ note.isTop ? '取消置顶' : '置顶' }}
+                </button>
+                <button class="visibility-btn" @click.stop="toggleVisibility(note)" :class="{ active: note.visible === 1 }">
+                  {{ note.visible === 1 ? '公开' : '仅自己可见' }}
+                </button>
+                <button class="delete-btn" v-if="status === 1" @click.stop="deleteNote(note)">
+                  删除
+                </button>
+                <button class="restore-btn" v-else @click.stop="restoreNote(note)">
+                  恢复
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <div class="load-more-container">
-          <button 
-            class="load-more" 
-            @click="loadMoreNotes" 
-            :disabled="loading || noMoreNotes"
-          >
-            <span v-if="loading">加载中...</span>
-            <span v-else-if="noMoreNotes">没有更多内容了</span>
-            <span v-else>加载更多</span>
-          </button>
-        </div>
-      </div>
-    </div>
-    
-    <!-- 编辑笔记模态窗口 -->
-    <transition name="fade">
-      <div v-if="isEditModalOpen" class="modal-overlay" @click.self="closeEditModal">
-        <div class="modal">
-          <h2>编辑笔记</h2>
-          <form @submit.prevent="submitEditNote" class="form">
-            <label>
-              标题:
-              <input type="text" v-model="currentNote.title" required />
-            </label>
-            <label>
-              内容:
-              <textarea v-model="currentNote.content" required></textarea>
-            </label>
-            <!-- 图片上传部分 -->
-            <label>
-              上传图片:
-              <input type="file" multiple @change="handleEditImageUpload" accept="image/*" />
-            </label>
-            <div class="image-previews">
-              <div v-for="(img, index) in currentNote.imgUris" :key="index" class="image-preview">
-                <img :src="img" alt="预览图片" />
-                <button type="button" @click="removeImage(currentNote.imgUris, index)">×</button>
-              </div>
-            </div>
-            <div class="form-buttons">
-              <button type="submit" class="btn save-btn" :disabled="loading">保存修改</button>
-              <button type="button" class="btn cancel-btn" @click="closeEditModal">取消</button>
-            </div>
-          </form>
+
+          <!-- 替换原有的加载更多按钮为分页器 -->
+          <div class="pagination-container">
+            <el-pagination
+              v-model:current-page="currentPage"
+              :page-size="pageSize"
+              :total="myNotes.length"
+              layout="prev, pager, next"
+              @current-change="handlePageChange"
+            />
+          </div>
         </div>
       </div>
-    </transition>
-    
-    <!-- 发布笔记模态窗口 -->
-    <transition name="fade">
-      <div v-if="isPublishModalOpen" class="modal-overlay" @click.self="closePublishModal">
-        <div class="modal">
-          <h2>发布笔记</h2>
-          <form @submit.prevent="submitPublishNote" class="form">
-            <label>
-              标题:
-              <input type="text" v-model="newNote.title" required />
-            </label>
-            <label>
-              内容:
-              <textarea v-model="newNote.content" required></textarea>
-            </label>
-            <!-- 图片上传部分 -->
-            <label>
-              上传图片:
-              <input type="file" multiple @change="handlePublishImageUpload" accept="image/*" />
-            </label>
-            <div class="image-previews">
-              <div v-for="(img, index) in newNote.imgUris" :key="index" class="image-preview">
-                <img :src="img" alt="预览图片" />
-                <button type="button" @click="removeImage(newNote.imgUris, index)">×</button>
+
+      <!-- 编辑笔记模态窗口 -->
+      <transition name="fade">
+        <div v-if="isEditModalOpen" class="modal-overlay" @click.self="closeEditModal">
+          <div class="modal">
+            <h2>编辑笔记</h2>
+            <form @submit.prevent="submitEditNote" class="form">
+              <label>
+                标题:
+                <input type="text" v-model="currentNote.title" required />
+              </label>
+              <label>
+                内容:
+                <textarea v-model="currentNote.content" required></textarea>
+              </label>
+              <!-- 图片上传部分 -->
+              <label>
+                上传图片:
+                <input type="file" multiple @change="handleEditImageUpload" accept="image/*" />
+              </label>
+              <div class="image-previews">
+                <div v-for="(img, index) in currentNote.imgUris" :key="index" class="image-preview">
+                  <img :src="img" alt="预览图片" />
+                  <button type="button" @click="removeImage(currentNote.imgUris, index)">×</button>
+                </div>
               </div>
-            </div>
-            <!-- <label>
+              <div class="form-buttons">
+                <button type="submit" class="btn save-btn" :disabled="loading">保存修改</button>
+                <button type="button" class="btn cancel-btn" @click="closeEditModal">取消</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </transition>
+
+      <!-- 发布笔记模态窗口 -->
+      <transition name="fade">
+        <div v-if="isPublishModalOpen" class="modal-overlay" @click.self="closePublishModal">
+          <div class="modal">
+            <h2>发布笔记</h2>
+            <form @submit.prevent="submitPublishNote" class="form">
+              <label>
+                标题:
+                <input type="text" v-model="newNote.title" required />
+              </label>
+              <label>
+                内容:
+                <textarea v-model="newNote.content" required></textarea>
+              </label>
+              <!-- 图片上传部分 -->
+              <label>
+                上传图片 (最多4张):
+                <input 
+                  type="file" 
+                  multiple 
+                  @change="handlePublishImageUpload" 
+                  accept="image/*"
+                  :disabled="newNote.imgUris.length >= 4" 
+                />
+              </label>
+              <div class="image-previews">
+                <div v-for="(img, index) in newNote.imgUris" :key="index" class="image-preview">
+                  <img :src="img" alt="预览图片" />
+                  <button type="button" @click="removeImage(newNote.imgUris, index)">×</button>
+                </div>
+              </div>
+              <!-- <label>
               主题 ID:
               <input type="number" v-model="newNote.topicId" />
             </label> -->
-            <div class="form-buttons">
-              <button type="submit" class="btn save-btn" :disabled="loading">发布</button>
-              <button type="button" class="btn cancel-btn" @click="closePublishModal">取消</button>
-            </div>
-          </form>
+              <div class="form-buttons">
+                <button type="submit" class="btn save-btn" :disabled="loading">发布</button>
+                <button type="button" class="btn cancel-btn" @click="closePublishModal">取消</button>
+              </div>
+            </form>
+          </div>
         </div>
+      </transition>
+
+      <!-- 添加空状态显示 -->
+      <div v-if="!loading && myNotes.length === 0" class="empty-state">
+        <img src="/assets/developer.png" alt="没有笔记" />
+        <h3>还没有笔记</h3>
+        <p>点击"发布笔记"开始创作吧！</p>
       </div>
-    </transition>
-    
+
+      <!-- 添加操作反馈提示 -->
+      <transition name="fade">
+        <div v-if="showMessage" class="message-toast" :class="messageType">
+          {{ message }}
+        </div>
+      </transition>
+
+    </el-card>
   </div>
 </template>
-
-
-
-
 
 <script>
 import axios from 'axios';
 import { getToken } from '@/composables/cookie';
 import { ref, reactive, computed } from 'vue';
+import { useRouter } from 'vue-router';
 
 export default {
   setup() {
+    const router = useRouter();
     const myNotes = ref([]);
     const userId = ref(null);
     const size = ref(10);
@@ -203,10 +195,72 @@ export default {
 
     const status = ref(1); // 1: 正常展示, 2: 查看被删除的笔记
 
+    // 添加分页相关的响应式变量
+    const currentPage = ref(1);
+    const pageSize = ref(9); // 每页显示9条笔记
+
+    // 计算分页后的笔记
+    const paginatedNotes = computed(() => {
+      const startIndex = (currentPage.value - 1) * pageSize.value;
+      const endIndex = startIndex + pageSize.value;
+      return sortedNotes.value.slice(startIndex, endIndex);
+    });
+
+    // 处理页码改变
+    const handlePageChange = (newPage) => {
+      currentPage.value = newPage;
+      // 如果接近末尾且还有更多数据，提前加载下一批
+      if (newPage * pageSize.value > myNotes.value.length - pageSize.value && !noMoreNotes.value) {
+        loadMoreNotes();
+      }
+    };
+
     // 计算属性：格式化日期
     const formatDate = (dateString) => {
-      const date = new Date(dateString);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      if (!dateString) return '';
+
+      // 将后端返回的日期字符串转换为标准格式
+      const [datePart, timePart] = dateString.split(' ');
+      if (!datePart || !timePart) return '';
+
+      const [year, month, day] = datePart.split('-');
+      const [hour, minute, second] = timePart.split(':');
+
+      const date = new Date(year, month - 1, day, hour, minute, second);
+
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) return '';
+
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    };
+
+    // 获取笔记详情
+    const fetchNoteDetails = async (note, token) => {
+      try {
+        const response = await axios.post(
+          '/api/note/note/detail',
+          { id: note.id },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.data.success) {
+          // 将imgUris和updateTime添加到笔记对象中
+          note.imgUris = response.data.data.imgUris || [];
+          note.updateTime = response.data.data.updateTime;
+          // 如果需要其他详细信息，也可以在这里添加
+        } else {
+          console.error(`获取笔记详情失败（ID: ${note.id}）:`, response.data.message);
+          note.imgUris = [];
+        }
+      } catch (err) {
+        console.error(`获取笔记详情时出错（ID: ${note.id}）:`, err);
+        note.imgUris = [];
+      }
     };
 
     // 获取当前用户信息
@@ -246,9 +300,9 @@ export default {
           '/api/note/note/UserNoteList',
           {
             userId: userId.value,
-            size: size.value,
+            size: size.value * 2, // 增加每次加载的数量，确保有足够的数据用于分页
             page: page.value,
-            status: status.value // 添加 status 参数
+            status: status.value
           },
           {
             headers: {
@@ -266,6 +320,12 @@ export default {
           if (fetchedNotes.length < size.value) {
             noMoreNotes.value = true;
           }
+
+          // 并行获取所有笔记的详情
+          const detailPromises = fetchedNotes.map(note => fetchNoteDetails(note, token));
+          await Promise.all(detailPromises);
+
+          // 将带有详情的笔记添加到myNotes中
           myNotes.value = [...myNotes.value, ...fetchedNotes];
         } else {
           throw new Error(response.data.message || '获取笔记列表失败。');
@@ -326,9 +386,12 @@ export default {
           '/api/note/note/update',
           {
             id: currentNote.id,
+            type: 0,  // 设置默认type为0
             title: currentNote.title,
             content: currentNote.content,
-            imgUris: currentNote.imgUris // 发送图片URL数组（Base64数据）
+            imgUris: currentNote.imgUris,
+            topicId: 1,  // 设置默认topicId为1
+            videoUri: null  // 添加videoUri字段，设为null
           },
           {
             headers: {
@@ -345,19 +408,19 @@ export default {
               ...myNotes.value[index],
               title: currentNote.title,
               content: currentNote.content,
-              imgUris: [...currentNote.imgUris], // 更新图片URL
+              imgUris: [...currentNote.imgUris],
               updateTime: new Date().toISOString(),
               isTop: currentNote.isTop
             };
           }
-          alert('笔记已更新。');
+          showToast('笔记已更新', 'success');  // 使用 showToast 替代 alert
           closeEditModal();
         } else {
           throw new Error(response.data.message || '更新笔记失败。');
         }
       } catch (err) {
         console.error('更新笔记时出错:', err);
-        alert(err.message || '更新笔记时出错。');
+        showToast(err.message || '更新笔记时出错。', 'error');  // 使用 showToast 替代 alert
       } finally {
         loading.value = false;
       }
@@ -403,7 +466,7 @@ export default {
           '/api/note/note/publish',
           {
             type: newNote.type,
-            imgUris: newNote.imgUris, // 发送图片URL数组（Base64数据）
+            imgUris: newNote.imgUris,  // 发送图片URL数组（MinIO生成的访问链接）
             title: newNote.title,
             content: newNote.content,
             topicId: newNote.topicId
@@ -429,49 +492,91 @@ export default {
         }
       } catch (err) {
         console.error('发布笔记时出错:', err);
-        alert(err.message || '发布笔记时出错。');
+        alert(err.message || '发布笔记���出错。');
       } finally {
         loading.value = false;
       }
     };
 
     // 处理图片上传（发布笔记）
-    const handlePublishImageUpload = (event) => {
+    const handlePublishImageUpload = async (event) => {
       const files = event.target.files;
       if (!files.length) return;
 
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          newNote.imgUris.push(e.target.result); // 添加 Base64 数据 URL
-        };
-        reader.onerror = (err) => {
-          console.error('图片读取出错:', err);
-          alert('图片读取出错。');
-        };
-        reader.readAsDataURL(file);
-      });
+      // 检查是否超过最大图片数量限制
+      if (newNote.imgUris.length + files.length > 4) {
+        alert('最多只能上传4张图片');
+        event.target.value = ''; // 清空文件输入
+        return;
+      }
 
-      // 清空文件输入
+      const uploadedImageUrls = [];
+
+      for (let file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          const response = await axios.post('/file/upload', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+              'Authorization': `Bearer ${getToken()}`,
+            },
+          });
+
+          if (response.data.success) {
+            uploadedImageUrls.push(response.data.data);
+          } else {
+            throw new Error(response.data.message || '图片上传失败');
+          }
+        } catch (err) {
+          console.error('上传图片失败:', err);
+          alert('上传图片失败: ' + (err.response?.data?.message || err.message));
+          return;
+        }
+      }
+
+      // 将所有上传的图片URL添加到 newNote.imgUris 中
+      newNote.imgUris = [...newNote.imgUris, ...uploadedImageUrls];
       event.target.value = '';
     };
 
     // 处理图片上传（编辑笔记）
-    const handleEditImageUpload = (event) => {
+    const handleEditImageUpload = async (event) => {
       const files = event.target.files;
       if (!files.length) return;
 
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          currentNote.imgUris.push(e.target.result); // 添加 Base64 数据 URL
-        };
-        reader.onerror = (err) => {
-          console.error('图片读取出错:', err);
-          alert('图片读取出错。');
-        };
-        reader.readAsDataURL(file);
-      });
+      const uploadedImageUrls = [];
+
+      for (let file of files) {
+        const formData = new FormData();
+        formData.append('file', file); // 根据后端接口文档，字段名为 'file'
+
+        try {
+          // 上传文件到后端
+          const response = await axios.post('/file/upload', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+              // 如果需要认证，可以添加 Authorization 头
+              'Authorization': `Bearer ${getToken()}`,
+            },
+          });
+
+          if (response.data.success) {
+            // 获取图片URL并添加到数组中
+            uploadedImageUrls.push(response.data.data);
+          } else {
+            throw new Error(response.data.message || '图片上传失败');
+          }
+        } catch (err) {
+          console.error('上传图片失败:', err);
+          alert('上传图片失败: ' + (err.response?.data?.message || err.message));
+          return; // 如果有一个文件上传失败，可以选择停止后续上传
+        }
+      }
+
+      // 将所有上传的图片URL添加到 currentNote.imgUris 中
+      currentNote.imgUris = [...currentNote.imgUris, ...uploadedImageUrls];
 
       // 清空文件输入
       event.target.value = '';
@@ -620,6 +725,32 @@ export default {
     // 组件挂载时获取用户信息和初始笔记
     fetchCurrentUser();
 
+    // 修改跳转函数
+    const goToNoteDetail = (id) => {
+      router.push({
+        name: 'NoteDetail',
+        params: {
+          id,
+          userId: userId.value // 使用已有的 userId
+        }
+      });
+    };
+
+    // 在 setup 中添加消息提示相关的响应式变量
+    const showMessage = ref(false);
+    const message = ref('');
+    const messageType = ref('success');
+
+    // 添加显示消息的方法
+    const showToast = (msg, type = 'success') => {
+      message.value = msg;
+      messageType.value = type;
+      showMessage.value = true;
+      setTimeout(() => {
+        showMessage.value = false;
+      }, 3000);
+    };
+
     return {
       myNotes,
       sortedNotes, // 添加计算属性到返回对象
@@ -646,25 +777,48 @@ export default {
       toggleVisibility,
       handlePublishImageUpload,
       handleEditImageUpload,
-      removeImage
+      removeImage,
+      goToNoteDetail,
+      currentPage,
+      pageSize,
+      paginatedNotes,
+      handlePageChange,
+      showMessage,
+      message,
+      messageType,
+      showToast,
     };
   },
 };
 </script>
 
-
-
-
-
-
 <style scoped>
 .my-notes-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  background-color: #f8f9fa;
-  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 73vh;
+  width: 100%;
+  /* 占满窗口高度 */
+  overflow: hidden;
+  /* 禁止外部滚动 */
+  padding: 0;
+  background-color: #f5f5f5;
 }
+
+.note-detail-card {
+  width: 90%;
+  max-width: 1200px;
+  height: 100%;
+  /* 尽可能覆盖窗口 */
+  overflow-y: auto;
+  /* 允许内容滚动 */
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  background: #fff;
+}
+
 
 h1 {
   text-align: center;
@@ -722,27 +876,37 @@ h1 {
 
 .notes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
+  margin-bottom: 20px;
 }
 
 .my-note-card {
   background: #ffffff;
   padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   position: relative;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .my-note-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 123, 255, 0.3);
+}
+
+.my-note-card.is-top {
+  border-left: 5px solid #28a745;
 }
 
 .my-note-card h3 {
   font-size: 1.5em;
-  margin-bottom: 10px;
+  margin: 15px 0 10px 0;
   color: #007bff;
 }
 
@@ -750,9 +914,13 @@ h1 {
   font-size: 1em;
   color: #555;
   margin-bottom: 15px;
-  height: 80px;
+  flex-grow: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  /* 显示三行 */
+  -webkit-box-orient: vertical;
 }
 
 .my-note-card small {
@@ -760,34 +928,51 @@ h1 {
   color: #999;
 }
 
+/* 修改图片相关样式 */
 .note-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
+  width: 100%;
+  margin-bottom: 15px;
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #f8f9fa;
 }
 
-.note-images img {
+.note-image {
   width: 100%;
-  max-width: 100px;
-  height: auto;
-  border-radius: 5px;
+  height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.note-images:hover .note-image {
+  transform: scale(1.05);
 }
 
 .note-actions {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 15px;
 }
 
-.edit-btn, .delete-btn, .top-btn, .visibility-btn, .restore-btn {
-  padding: 5px 10px;
+.edit-btn,
+.delete-btn,
+.top-btn,
+.visibility-btn,
+.restore-btn {
+  padding: 6px 12px;
   font-size: 0.9em;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
 }
 
 .edit-btn {
@@ -877,9 +1062,25 @@ h1 {
 }
 
 .loading-spinner {
-  text-align: center;
-  font-size: 1.2em;
-  color: #007bff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+.loading-spinner::after {
+  content: "";
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* 模态窗口样式 */
@@ -899,11 +1100,22 @@ h1 {
 .modal {
   background: #ffffff;
   padding: 30px;
-  border-radius: 10px;
+  border-radius: 20px;
   width: 90%;
-  max-width: 600px; /* 增加宽度以容纳图片预览 */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  position: relative;
+  max-width: 600px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .modal h2 {
@@ -925,16 +1137,19 @@ h1 {
 .form input,
 .form textarea {
   width: 100%;
-  padding: 10px;
-  margin-top: 5px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  padding: 12px;
+  margin-top: 8px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
   box-sizing: border-box;
+  transition: border-color 0.3s ease;
 }
 
-.form textarea {
-  resize: vertical;
-  height: 100px;
+.form input:focus,
+.form textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
 .image-previews {
@@ -1014,22 +1229,25 @@ h1 {
 }
 
 /* 过渡效果 */
-.fade-enter-active, .fade-leave-active {
+.fade-enter-active,
+.fade-leave-active {
   transition: opacity 0.3s;
 }
 
-.fade-enter-from, .fade-leave-to {
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .notes-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .my-note-card p {
     height: 60px;
+    -webkit-line-clamp: 2;
   }
 }
 
@@ -1037,20 +1255,21 @@ h1 {
   .notes-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .my-note-card p {
     height: 80px;
+    -webkit-line-clamp: 3;
   }
-  
+
   .modal {
     padding: 20px;
   }
-  
+
   .form-buttons {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .save-btn,
   .cancel-btn {
     width: 100%;
@@ -1060,34 +1279,137 @@ h1 {
     width: 80px;
     height: 80px;
   }
+
+  .note-image {
+    max-height: 150px;
+  }
+
+  .note-images img {
+    width: 100%;
+  }
 }
 
- /* 新增样式：置顶标识
-.my-note-card::before {
-  content: '';
-  display: block;
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-bottom: 10px solid #ffc107;
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-} 
+/* 修改分页器容器样式 */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+  margin-top: 30px;
+}
 
-.my-note-card.is-top::before {
-  border-bottom-color: #28a745; 
-} */
+/* 添加分页器组件样式 */
+:deep(.el-pagination) {
+  text-align: center;
+  font-size: 14px;
+  padding: 10px 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
 
-/* 新增样式：恢复按钮 */
-.restore-btn {
-  background-color: #17a2b8;
+:deep(.el-pagination .el-pager li) {
+  min-width: 32px;
+  height: 32px;
+  line-height: 32px;
+  border-radius: 4px;
+  margin: 0 3px;
+  font-weight: 500;
+}
+
+:deep(.el-pagination .el-pager li.active) {
+  background-color: #409eff;
   color: #fff;
 }
 
-.restore-btn:hover {
-  background-color: #138496;
+:deep(.el-pagination .btn-prev),
+:deep(.el-pagination .btn-next) {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  padding: 0;
+  margin: 0 3px;
+}
+
+/* 响应式调整 */
+@media (max-width: 480px) {
+  :deep(.el-pagination) {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  :deep(.el-pagination .el-pager li) {
+    min-width: 28px;
+    height: 28px;
+    line-height: 28px;
+    margin: 0 2px;
+  }
+
+  :deep(.el-pagination .btn-prev),
+  :deep(.el-pagination .btn-next) {
+    min-width: 28px;
+    height: 28px;
+  }
+}
+
+/* 添加空状态样式 */
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #6c757d;
+}
+
+.empty-state img {
+  width: 120px;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+/* 添加消息提示样式 */
+.message-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  background-color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: #333;
+  font-size: 1em;
+  font-weight: bold;
+  animation: toastFadeIn 0.3s ease;
+}
+
+@keyframes toastFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-toast.success {
+  background-color: #dff0d8;
+  border-color: #d6e9c6;
+}
+
+.message-toast.error {
+  background-color: #f2dede;
+  border-color: #ebccd1;
+}
+
+/* 添加禁用状态的样式 */
+input[type="file"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 可以添加一个提示文字显示剩余可上传数量 */
+.image-upload-info {
+  font-size: 0.8em;
+  color: #666;
+  margin-top: 4px;
 }
 </style>

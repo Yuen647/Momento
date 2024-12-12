@@ -1,31 +1,5 @@
 import axios from "@/axios";
-
-// 登录接口
-export function login(email,
-    password,
-    code,
-    type,) {
-    return axios.post("/auth/login",
-        {
-            email,
-            password,
-            code,
-            type,
-        })
-}
-
-// 验证码发送接口
-export function sendVerificationCode(email) {
-    return axios.post('/auth/verification/code/send', {
-        email
-    });
-}
-
-// 登出接口
-export function logout() {
-    return axios.post('/auth/logout');
-}
-
+import { getToken } from "@/composables/cookie"
 
 // 获取登录用户信息
 export function getUserInfo() {
@@ -39,21 +13,21 @@ export function updateAdminPassword(data) {
 
 // 获取用户信息
 export function fetchUserInfoApi(userId) {
-    return axios.post("/api/user/user/findById", {
+    return axios.post("/user/user/findById", {
         id: userId,
     });
 }
 
 // 获取用户统计信息
 export function fetchUserStatsApi(userId) {
-    return axios.post("/api/count/count/user", {
+    return axios.post("/count/count/user", {
         userId,
     });
 }
 
 // 获取用户笔记列表
 export function fetchUserNotesApi(userId, page, size) {
-    return axios.post("/api/note/note/UserNoteList", {
+    return axios.post("/note/note/UserNoteList", {
         userId,
         page,
         size,
