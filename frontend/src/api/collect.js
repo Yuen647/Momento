@@ -48,14 +48,18 @@ export function nolikeNoteService(params) {
 }
 
 //获取笔记计数信息
+// export function noteCountService(params) {
+//     const token = getToken();
+//     return axios.post("/count/count/note", params, {
+//         headers: {
+//             Authorization: `Bearer ${token}`,
+//             'Content-Type': 'application/json'
+//         }
+//     });
+// }
+//获取笔记计数信息
 export function noteCountService(params) {
-    const token = getToken();
-    return axios.post("/count/count/note", params, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        }
-    });
+    return axios.post("/count/count/note", params, { silent: true })
 }
 
 //获取笔记一级评论

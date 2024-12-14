@@ -86,7 +86,7 @@
 <script>
 import { getNoteDetailService, addCommentService, getNoteCommentsService, getCommentRepliesService } from "@/api/note.js";
 import { ElMessage } from "element-plus";
-
+import { dolikeNoteService, nolikeNoteService, doCollectService, unCollectService, noteCountService } from "@/api/collect.js";
 export default {
     data() {
         return {
@@ -102,26 +102,60 @@ export default {
         };
     },
     methods: {
-        fetchNoteDetail() {
-            const noteId = this.$route.params.id; // 从路由参数获取笔记ID
+        async fetchNoteCount() {
+            const noteId = this.$route.params.id;
+            if (!noteId) {
+                console.warn("Note ID is invalid. Skipping fetchNoteCount.");
+                return;
+            }
+            try {
+                const response = await noteCountService({ noteId });
+                console.log("笔记计数接口返回数据：", response);
+                if (response.success) {
+                    this.likeCount = response.data.likeTotal || 0;
+                    this.collectCount = response.data.collectTotal || 0;
+                    console.log("点赞数：", this.likeCount);
+                    console.log("收藏数：", this.collectCount);
+                } else {
+                    // 接口返回的成功标识为 false，可以在这里设置默认值
+                    console.warn("Failed to fetch note count, using defaults.");
+                    this.likeCount = 0;
+                    this.collectCount = 0;
+                }
+            } catch (error) {
+                // 捕获500错误，在控制台记录，但不弹错误提示，使用默认值兜底
+                console.error("获取笔记计数信息失败，使用默认计数值:", error);
+                this.likeCount = 0;
+                this.collectCount = 0;
+                // 可选：不使用 ElMessage 提示用户错误，将其默默处理
+                // ElMessage.error("获取计数失败，已使用默认值");
+            }
+        },
+        async fetchNoteDetail() {
+            const noteId = this.$route.params.id;
             if (!noteId) {
                 console.warn("Note ID is null or undefined. Skipping fetch.");
                 return;
             }
-            this.note = null; // 清空旧数据以显示加载状态
-            getNoteDetailService({ id: noteId })
-                .then((response) => {
-                    if (response.success) {
-                        this.note = response.data;
-                        this.fetchComments(); // 获取评论列表
-                    } else {
-                        ElMessage.error(response.message || "Failed to fetch note details.");
-                    }
-                })
-                .catch((error) => {
-                    console.error("Error fetching note detail:", error);
-                    ElMessage.error("An error occurred while fetching note details.");
-                });
+            this.note = null;
+            try {
+                const response = await getNoteDetailService({ id: noteId });
+                if (response.success) {
+                    this.note = response.data;
+                    this.isLiked = JSON.parse(localStorage.getItem(`note_${noteId}_liked`)) || false;
+                    this.isCollected = JSON.parse(localStorage.getItem(`note_${noteId}_collected`)) || false;
+                    await this.fetchNoteCount(); // 获取计数信息
+                    this.fetchComments();
+                } else {
+                    //ElMessage.error(response.message || "Failed to fetch note details.");
+                    console.error("获取笔记计数信息失败，使用默认计数值:", error);
+                    this.likeCount = 0;
+                    this.collectCount = 0;
+                }
+            } catch (error) {
+                console.error("Error fetching note detail:", error);
+                ElMessage.error("An error occurred while fetching note details.");
+            }
         },
         fetchComments() {
             const noteId = this.$route.params.id;
@@ -208,15 +242,43 @@ export default {
         goToUserDetail(userId) {
             this.$router.push({ name: "UserDetail", params: { id: userId } });
         },
-        toggleLike() {
-            this.isLiked = !this.isLiked;
-            this.likeCount += this.isLiked ? 1 : -1;
-            // 这里后续需要调用后端API
+        async toggleLike() {
+            const noteId = this.$route.params.id;
+            const service = this.isLiked ? nolikeNoteService : dolikeNoteService;
+
+            try {
+                const response = await service({ id: noteId });
+                if (response.success) {
+                    this.isLiked = !this.isLiked;
+                    localStorage.setItem(`note_${noteId}_liked`, JSON.stringify(this.isLiked));
+                    await this.fetchNoteCount(); // 重新获取最新计数
+                    ElMessage.success(this.isLiked ? "点赞成功" : "取消点赞成功");
+                } else {
+                    ElMessage.error(response.message || "操作失败");
+                }
+            } catch (error) {
+                console.error("Error toggling like:", error);
+                ElMessage.error("操作失败");
+            }
         },
-        toggleCollect() {
-            this.isCollected = !this.isCollected;
-            this.collectCount += this.isCollected ? 1 : -1;
-            // 这里后续需要调用后端API
+        async toggleCollect() {
+            const noteId = this.$route.params.id;
+            const service = this.isCollected ? unCollectService : doCollectService;
+
+            try {
+                const response = await service({ id: noteId });
+                if (response.success) {
+                    this.isCollected = !this.isCollected;
+                    localStorage.setItem(`note_${noteId}_collected`, JSON.stringify(this.isCollected));
+                    await this.fetchNoteCount(); // 重新获取最新计数
+                    ElMessage.success(this.isCollected ? "收藏成功" : "取消收藏成功");
+                } else {
+                    ElMessage.error(response.message || "操作失败");
+                }
+            } catch (error) {
+                console.error("Error toggling collect:", error);
+                ElMessage.error("操作失败");
+            }
         },
     },
     mounted() {
@@ -375,13 +437,15 @@ export default {
 
 .reply-input {
     margin-top: 10px;
-    padding-left: 20px; /* 缩进以区分层次 */
+    padding-left: 20px;
+    /* 缩进以区分层次 */
     border-left: 2px solid #f0f0f0;
 }
 
 .replies-list {
     margin-top: 15px;
-    padding-left: 20px; /* 缩进以区分层次 */
+    padding-left: 20px;
+    /* 缩进以区分层次 */
     border-left: 2px solid #f0f0f0;
 }
 
@@ -422,5 +486,4 @@ export default {
     line-height: 1.4;
     color: #555;
 }
-
 </style>

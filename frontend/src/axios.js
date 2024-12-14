@@ -1,6 +1,6 @@
 import axios from "axios";
 import { getToken } from "@/composables/cookie"
-import { showMessage} from '@/composables/util'
+import { showMessage } from '@/composables/util'
 
 // 创建 Axios 实例
 const instance = axios.create({
@@ -28,17 +28,26 @@ instance.interceptors.request.use(function (config) {
 });
 
 // 添加响应拦截器
-instance.interceptors.response.use(function (response) {
-    // 对响应数据做点什么
-    return response.data
-}, function (error) {
-    // 对响应错误做点什么
-    let errorMsg = error.response.message || '请求失败'
-    // 弹错误提示
-    showMessage(errorMsg, 'error')
+instance.interceptors.response.use(
+    function (response) {
+        // 对响应数据做点什么
+        return response.data
+    },
+    function (error) {
+        // 对响应错误做点什么
+        const config = error.config; // 获取请求的配置信息
+        const silent = config?.silent; // 判断是否需要静默处理
 
-    return Promise.reject(error)
-})
+        if (!silent) {
+            let errorMsg = error.response?.message || '请求失败';
+            // 弹错误提示
+            showMessage(errorMsg, 'error');
+        } else {
+            console.warn('请求失败但静默处理:', error);
+        }
+
+        return Promise.reject(error);
+    })
 
 // 暴露出去
 export default instance;

@@ -9,13 +9,14 @@
     <div class="scroll-content" @scroll="handleScroll">
       <el-row :gutter="20">
         <el-col v-for="(article, index) in articles.slice(0, displayedItems)" :key="article.id" :span="6">
-          <!-- 监听 el-card 的点击事件，传递笔记 id -->
           <el-card shadow="hover" class="box-card" @click="openDrawer2(article.id, article)" style="cursor: pointer;">
-            <!-- 影像展示 -->
-            <img :src="article.imgUris" alt="影像"
-              style="height: 200px; width: 100%; object-fit: cover; border-radius: 5px;" />
+            <div class="image-container">
+              <img src="/assets/developer.png" alt="默认图片"
+                class="default-image" />
+              <img v-if="article.imgUris" :src="article.imgUris" alt=""
+                class="overlay-image" />
+            </div>
 
-            <!-- 文章标题 -->
             <div style="margin-top: 10px; font-weight: bold;">
               {{ article.title }}
             </div>
@@ -74,7 +75,7 @@ const collectList = async () => {//获取收藏列表相关
   let result = await collectListService(params);
 
   articles.value = result.data;
-  // 为了并行处理多个收藏笔记详情的请求，使用 Promise.all
+  // 为了并行处理多个收藏笔记详情��请求，使用 Promise.all
   const updatedArticles = await Promise.all(
     articles.value.map(async (article) => {
       /* console.log(article.id); */
@@ -176,5 +177,26 @@ onMounted(() => {
   :deep(.ql-editor) {
     min-height: 200px;
   }
+}
+
+.image-container {
+    position: relative;
+    height: 200px;
+    width: 100%;
+}
+
+.default-image,
+.overlay-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.overlay-image {
+    z-index: 1;
 }
 </style>
