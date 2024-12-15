@@ -40,7 +40,7 @@ export function getNoteCommentsService(params) {
     return axios.post('/note/comment/list', params);
 }
 
-// 查看评论的回复
+// 查���评论的回复
 export function getCommentRepliesService(params) {
     return axios.post('/note/comment/replies', params);
 }
@@ -48,4 +48,9 @@ export function getCommentRepliesService(params) {
 // 删除评论及其子评论
 export function deleteCommentService(params) {
     return axios.post('/note/comment/delete', params);
+}
+
+// 添加获取评论总数的接口
+export function getCommentCountService(params) {
+    return axios.post("/note/comment/count", params);
 }

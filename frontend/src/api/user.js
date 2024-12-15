@@ -47,3 +47,13 @@ export function unfollowUserApi(followUserId) {
         followUserId,
     });
 }
+
+// 根据用户ID查询用户信息
+export function getUserInfoByIdService(params) {
+    return axios.post("/user/user/findById", params)
+        .then(response => response.data)
+        .catch(error => {
+            console.error("Error fetching user info:", error);
+            throw error;
+        });
+}
