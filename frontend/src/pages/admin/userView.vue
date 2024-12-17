@@ -20,7 +20,7 @@
             <el-tag type="danger">点赞 {{ userStats.likeTotal }}</el-tag>
             <el-tag>收藏 {{ userStats.collectTotal }}</el-tag>
           </div>
-          <el-button type="primary" size="small" @click="toggleFollow">
+          <el-button type="primary" size="small" @click="toggleFollow" v-if="!isSelf">
             {{ isFollowing ? '取消关注' : '关注' }}
           </el-button>
         </div>
@@ -79,6 +79,8 @@ import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { getToken } from '@/composables/cookie';
 import { Calendar } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import { followUserApi, unfollowUserApi } from '@/api/admin/user';
 
 const route = useRoute();
 const router = useRouter();
@@ -92,6 +94,7 @@ const size = ref(10);
 const isFollowing = ref(false);
 const defaultAvatar =
   'https://img.quanxiaoha.com/quanxiaoha/f97361c0429d4bb1bc276ab835843065.jpg';
+const isSelf = ref(false);
 
 const recommendedUsers = ref([
   { id: 1, nickName: 'Alice', avatar: '', followers: 120 },
@@ -116,16 +119,26 @@ const formatDate = (dateString) => {
 const fetchUserInfo = async () => {
   try {
     const token = getToken();
-    const response = await axios.post(
-      '/api/user/user/findById',
-      { id: route.params.userId },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (response.data.success) {
-      userInfo.value = response.data.data;
+    const [userResponse, currentUserResponse] = await Promise.all([
+      axios.post(
+        '/api/user/user/findById',
+        { id: route.params.userId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      ),
+      axios.get('/api/user/user/current', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+    ]);
+
+    if (userResponse.data.success) {
+      userInfo.value = userResponse.data.data;
       if (!userInfo.value.avatar) {
         userInfo.value.avatar = defaultAvatar;
       }
+    }
+
+    if (currentUserResponse.data.success) {
+      isSelf.value = currentUserResponse.data.data.id === Number(route.params.userId);
     }
   } catch (error) {
     console.error('获取用户信息失败:', error);
@@ -148,22 +161,76 @@ const fetchUserStats = async () => {
   }
 };
 
-const toggleFollow = async () => {
-  const token = getToken();
-  const url = isFollowing.value
-    ? '/api/relation/relation/unfollow'
-    : '/api/relation/relation/follow';
-  const body = { followUserId: route.params.userId };
+const checkFollowStatus = async () => {
+  if (isSelf.value) {
+    isFollowing.value = false;
+    return;
+  }
 
   try {
-    const response = await axios.post(url, body, {
-      headers: { Authorization: `Bearer ${token}` },
+    const userId = route.params.userId;
+    await followUserApi(userId);
+    isFollowing.value = true;
+  } catch (error) {
+    if (error.response?.data?.errorCode === 'RELATION-20004') {
+      // 如果返回已关注错误，说明用户已经关注了
+      isFollowing.value = true;
+    } else if (error.response?.data?.errorCode === 'RELATION-20001') {
+      // 如果是试图关注自己
+      isSelf.value = true;
+      isFollowing.value = false;
+    } else {
+      // 其他错误说明未关注
+      isFollowing.value = false;
+    }
+  }
+};
+
+const toggleFollow = async () => {
+  if (isSelf.value) {
+    ElMessage({
+      type: 'warning',
+      message: '无法关注自己'
     });
-    if (response.data.success) {
+    return;
+  }
+
+  try {
+    const userId = route.params.userId;
+    const response = isFollowing.value
+      ? await unfollowUserApi(userId)
+      : await followUserApi(userId);
+      
+    if (response.success) {
       isFollowing.value = !isFollowing.value;
+      // 更新粉丝数量
+      await fetchUserStats();
+      ElMessage({
+        type: 'success',
+        message: isFollowing.value ? '关注成功' : '取消关注成功'
+      });
     }
   } catch (error) {
-    console.error(isFollowing.value ? '取消关注失败:' : '关注失败:', error);
+    if (error.response?.data?.errorCode === 'RELATION-20004') {
+      // 已经关注的情况
+      isFollowing.value = true;
+      ElMessage({
+        type: 'warning',
+        message: '您已经关注了该用户'
+      });
+    } else if (error.response?.data?.errorCode === 'RELATION-20001') {
+      // 试图关注自己的情况
+      ElMessage({
+        type: 'warning',
+        message: '无法关注自己'
+      });
+    } else {
+      console.error(isFollowing.value ? '取消关注失败:' : '关注失败:', error);
+      ElMessage({
+        type: 'error',
+        message: error.response?.data?.message || (isFollowing.value ? '取消关注失败' : '关注失败')
+      });
+    }
   }
 };
 
@@ -193,6 +260,7 @@ const goToNoteDetail = (noteId) => {
 onMounted(async () => {
   await fetchUserInfo();
   await fetchUserStats();
+  await checkFollowStatus();
   await fetchUserNotes();
 });
 </script>

@@ -62,14 +62,14 @@ export function fetchUserNotesApi(userId, page, size) {
 
 // 关注用户
 export function followUserApi(followUserId) {
-    return axios.post("/api/relation/relation/follow", {
+    return axios.post("/relation/relation/follow", {
         followUserId,
     });
 }
 
 // 取消关注用户
-export function unfollowUserApi(followUserId) {
-    return axios.post("/api/relation/relation/unfollow", {
-        followUserId,
+export function unfollowUserApi(unfollowUserId) {
+    return axios.post("/relation/relation/unfollow", {
+        unfollowUserId,
     });
 }
